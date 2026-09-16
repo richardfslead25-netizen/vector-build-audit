@@ -1,16 +1,21 @@
 # Proposed Stage 2 market-data provider
 
-Stage 1 does not connect a live provider.
+Stage 1 does not connect a live provider. Live fetch and order methods raise `LiveIngestionBlocked`.
 
-Primary candidate: Webull read-only market data already connected to the Owner workspace.
-Required fields: underlying last+time, OCC identity, bid/ask/mid/spread, volume, OI+report date, Greeks+time, IV, listed expirations, daily bars + benchmark.
-Optional (zero points if missing): VP, breadth, order flow, vendor GEX with full stamp.
+Primary candidate: Webull read-only market data **if and only if** programmatic entitlement is confirmed.
 
-Open questions before Stage 2 code lands:
-1. OPRA research-export entitlement vs in-app only
-2. Delayed vs real-time
-3. Historical chain availability
-4. Redistribution into this repo allowed?
-5. Cost of any upgrade
+Required fields:
 
-No secrets in this repository. No order-submission scope.
+- underlying last + observation time
+- OCC / OSI identity, right, strike, listed expiration, multiplier
+- bid / ask / mid / dollar spread / percent spread
+- session volume
+- open interest + OI reporting date
+- delta, gamma, theta, vega, IV + Greeks calculation time
+- daily bars + declared benchmark bars
+
+Optional (zero points if missing): volume profile, breadth, order flow, vendor GEX with full stamp (vendor, methodology, coverage, model as-of, units, sign convention, spot reference).
+
+See `docs/WEBULL-ENTITLEMENT-QUESTIONS.md` for the full questionnaire.
+
+No secrets in this repository. No order-submission scope. No SAGE writes.
