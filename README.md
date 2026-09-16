@@ -12,11 +12,13 @@ This repository is **not** SIGIL. It is **not** SAGE. It is the downstream optio
 
 ```text
 LIVE_EXECUTION_AUTHORIZED = FALSE
-PAPER_EXECUTION = FALSE unless Owner activates it in-session
+PAPER_EXECUTION_ENABLED = FALSE
 OWNER_FINAL_AUTHORITY = TRUE
 SAGE_STATUS = NOT_ESTABLISHED
-officialFreezeCount = 0
+VECTOR_WRITES_TO_SAGE = false
 ```
+
+Do not invent `officialFreezeCount` when SAGE is `UNAVAILABLE`.
 
 ## Layout
 
@@ -30,27 +32,36 @@ skill/references/scoring.md
 skill/references/red-team.md
 skill/assets/DAILY-OPTIONS-OPPORTUNITY-BOARD.md
 GPT-AUDIT.md
+vector/
+tests/
+docs/
+docs/WEBULL-ENTITLEMENT-QUESTIONS.md
+audits/2026-09-15-stage1-gpt-mailbox.md
 ```
 
 ## Read order for GPT
 
-1. `GPT-AUDIT.md` — audit brief and questions.
-2. `skill/references/system-architecture.md` — SIGIL/SAGE/fusion contract.
-3. `skill/SKILL.md` — operating skill.
-4. Remaining references and the board template.
+1. `audits/2026-09-15-stage1-gpt-mailbox.md` — Stage 1 delivery and audit questions.
+2. `GPT-AUDIT.md` — original audit brief.
+3. `docs/CONFLICTS.md` — resolutions vs older skill wording.
+4. `skill/references/system-architecture.md` — SIGIL/SAGE/fusion contract.
+5. `skill/SKILL.md` — operating skill.
+6. Remaining references and the board template.
+7. `docs/WEBULL-ENTITLEMENT-QUESTIONS.md` — Stage 2 provider gate.
 
-## What this build claims
+## Stage 1 implementation (`build/stage-1-contracts`)
 
-- Single-agent. No Hunter/Oracle/Fuck Face/CoS team.
-- Consumes official SIGIL/SAGE freezes only.
-- If Sage inferencer is a stub, prints `NOT_ESTABLISHED` and continues on catalyst + tape.
-- Fusion is `CONSISTENT | INCONSISTENT | INSUFFICIENT`. Fusion does not mint a regime.
-- Expression stack: regime/catalyst → break → relative volume → momentum → flip run/reclaim → sourced GEX → runway → liquid 0.35–0.50Δ EOW 14–45 DTE long premium.
+Typed Python contracts, deterministic scoring, eligibility gates, read-only SAGE adapter, synthetic demonstration, append-only journal, offline ingestion boundary, and offline tests live under `vector/` and `tests/`.
 
-## What this build does not claim
+```text
+RESEARCH_ENABLED = true
+PAPER_EXECUTION_ENABLED = false
+LIVE_EXECUTION_ENABLED = false
+```
 
-- A live Sage posterior.
-- A resolved regime catalog.
-- Bayesian/HMM computation.
-- Live broker execution.
-- Completeness of WTI / HY OAS / MOVE pillars.
+```text
+PYTHONPATH=. pytest -q
+PYTHONPATH=. python -m vector.demo.run_stage1
+```
+
+VECTOR remains downstream of SAGE. No write path. No broker orders. An app subscription is not programmatic market-data access.
