@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from vector.config import APPROVED_ENTITLEMENT, VECTOR_STAGE
 from vector.contracts.market import MarketSnapshot
 from vector.contracts.options import OptionContract
 from vector.contracts.provenance import Provenance
@@ -24,6 +25,7 @@ class OfflineMarketSource:
     def __init__(self, *, entitlement: str = "unverified") -> None:
         self.entitlement = entitlement
         self.offline = os.environ.get("VECTOR_OFFLINE", "1") == "1"
+        self.stage = os.environ.get("VECTOR_STAGE", VECTOR_STAGE)
 
     def fetch_quote(self, *_args: Any, **_kwargs: Any) -> MarketSnapshot:
         raise LiveIngestionBlocked(
@@ -42,8 +44,14 @@ class OfflineMarketSource:
         contracts: list[OptionContract],
         provenance: Provenance,
     ) -> tuple[MarketSnapshot, list[OptionContract]]:
-        if not provenance.synthetic and self.offline:
-            raise LiveIngestionBlocked("offline mode accepts labeled synthetic snapshots only")
-        if provenance.entitlement in {"unverified", "not-connected"} and not provenance.synthetic:
-            raise LiveIngestionBlocked("unverified entitlement cannot be treated as authorized data")
+        if self.stage != "1":
+            raise LiveIngestionBlocked(f"VECTOR_STAGE={self.stage!r} is not an approved Stage 1 state")
+        if not provenance.synthetic:
+            raise LiveIngestionBlocked("Stage 1 accepts labeled synthetic snapshots only")
+        if provenance.entitlement != APPROVED_ENTITLEMENT:
+            raise LiveIngestionBlocked(
+                f"entitlement {provenance.entitlement!r} is not {APPROVED_ENTITLEMENT}"
+            )
+        if provenance.data_status.value not in {"SYNTHETIC"}:
+            raise LiveIngestionBlocked("non-synthetic data_status cannot enter Stage 1 scoring")
         return market, contracts

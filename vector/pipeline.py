@@ -15,6 +15,8 @@ from vector.sage.adapter import SageReadOnlyAdapter
 from vector.scoring.engine import ScoreInputs, score_candidate
 from vector.scoring.scenarios import estimate_scenarios, scenarios_available, scenarios_support_thesis
 
+NEARBY_STRIKE_PCT = 0.03
+
 
 def gamma_variant_of(market: MarketSnapshot) -> GammaVariant:
     g = market.gamma
@@ -26,14 +28,36 @@ def gamma_variant_of(market: MarketSnapshot) -> GammaVariant:
     return GammaVariant.GAMMA_CONFIRMED if required else GammaVariant.GAMMA_UNAVAILABLE
 
 
-def _comparison_flags(contract: OptionContract | None, alternatives: list[OptionContract]) -> tuple[bool, bool]:
+def _eligible_alternative(contract: OptionContract, alt: OptionContract) -> bool:
+    if alt.underlying != contract.underlying:
+        return False
+    if alt.right != contract.right:
+        return False
+    if alt.adjusted or alt.nonstandard_deliverable:
+        return False
+    if contract.quote_time and alt.quote_time and alt.quote_time > contract.quote_time:
+        return False
+    return True
+
+
+def _comparison_flags(
+    contract: OptionContract | None,
+    alternatives: list[OptionContract],
+    spot: float | None = None,
+) -> tuple[bool, bool]:
     if contract is None:
         return False, False
-    nearby_strike = any(
-        alt.expiration == contract.expiration and abs(alt.strike - contract.strike) > 1e-9
-        for alt in alternatives
-    )
-    nearby_expiry = any(alt.expiration != contract.expiration for alt in alternatives)
+    nearby_strike = False
+    nearby_expiry = False
+    band = max(1.0, (spot or contract.strike) * NEARBY_STRIKE_PCT)
+    for alt in alternatives:
+        if not _eligible_alternative(contract, alt):
+            continue
+        strike_gap = abs(alt.strike - contract.strike)
+        if alt.expiration == contract.expiration and strike_gap > 1e-9 and strike_gap <= band:
+            nearby_strike = True
+        if alt.expiration != contract.expiration and strike_gap <= band:
+            nearby_expiry = True
     return nearby_strike, nearby_expiry
 
 
@@ -73,7 +97,7 @@ def evaluate_candidate(
         as_of_date=cutoff.date(),
     )
     vetoes.extend(coherence_vetoes(ticker=ticker, direction=direction, market=market, contract=working))
-    nearby_strike, nearby_expiry = _comparison_flags(working, alternatives)
+    nearby_strike, nearby_expiry = _comparison_flags(working, alternatives, getattr(market, "spot", None))
     if working is not None and not nearby_strike:
         vetoes.append("MISSING_NEARBY_STRIKE")
     if working is not None and not nearby_expiry:
@@ -134,7 +158,7 @@ def evaluate_candidate(
             f"dte_band={classify_dte_band(dte).value}",
             f"mode={sage.operating_mode.value}",
             f"gamma_variant={variant.value}",
-            "red_team=stub",
+            "red_team=stage1-no-promote",
         ],
     )
     if packet.authority.paper_execution_enabled or packet.authority.live_execution_enabled:
