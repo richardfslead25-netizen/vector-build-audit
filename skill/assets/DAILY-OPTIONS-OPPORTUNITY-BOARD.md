@@ -1,12 +1,3 @@
-<!-- STAGE-1 RECONCILIATION
-Governing authority: approved VECTOR build instructions and Stage 1 code.
-Conflicts resolved in docs/CONFLICTS.md.
-Binding overrides: fixed DTE bands (no interpolation); missing evidence scores 0;
-no gamma points from technical substitutes; do not invent officialFreezeCount when
-SAGE is UNAVAILABLE; BEHAVIOR_ONLY vs SAGE_INFORMED; paper/live execution disabled;
-grades A_PLUS>=90, A 82<=x<90, B_DEVELOPING 72<=x<82, WATCH 62<=x<72, REJECT<62.
--->
-
 # Daily Options Opportunity Board
 
 **Strategy:** `VECTOR-AGGRESSIVE-OPTIONS-001`  
@@ -14,15 +5,22 @@ grades A_PLUS>=90, A 82<=x<90, B_DEVELOPING 72<=x<82, WATCH 62<=x<72, REJECT<62.
 **Cycle:** PREMARKET / OPEN_CONFIRMATION / MIDDAY / CLOSE / DEEP_DIVE  
 **Information cutoff:**  
 **Prepared by:** VECTOR Aggressive Options Trader (single agent)  
-**Paper authority:**  
-**Live authority:** OWNER ONLY
+**Operating mode:** BEHAVIOR_ONLY / SAGE_INFORMED  
+**Fusion:** CONSISTENT / INCONSISTENT / INSUFFICIENT  
+**SAGE status:** UNAVAILABLE / INVALID / STALE / NOT_ESTABLISHED / ESTABLISHED  
+**SAGE claimed / verified:** claimed_established= / verified_established=  
+**Paper authority:** FALSE  
+**Live authority:** OWNER ONLY / FALSE
 
 ## Data-quality header
 
 | Input | Source | As-of | Status |
 |---|---|---|---|
-| SIGIL |  |  | AVAILABLE / UNAVAILABLE |
-| SAGE |  |  | AVAILABLE / UNAVAILABLE |
+| SIGIL |  |  | AVAILABLE / UNAVAILABLE (does not confer SAGE) |
+| SAGE |  |  | UNAVAILABLE / NOT_ESTABLISHED / INVALID / STALE / ESTABLISHED |
+| SAGE verified |  |  | verified_established TRUE / FALSE |
+| Operating mode |  |  | BEHAVIOR_ONLY / SAGE_INFORMED |
+| Fusion |  |  | CONSISTENT / INCONSISTENT / INSUFFICIENT |
 | Underlying tape |  |  |  |
 | Option chains |  |  |  |
 | GEX |  |  | PRINTABLE / GEX_NOT_PRINTABLE |
@@ -37,68 +35,19 @@ grades A_PLUS>=90, A 82<=x<90, B_DEVELOPING 72<=x<82, WATCH 62<=x<72, REJECT<62.
 | QQQ |  |  |  |  |  |  |  |  |
 | IWM |  |  |  |  |  |  |  |  |
 
-Do not fill unavailable values. Use `GEX_NOT_PRINTABLE`.
+Do not fill unavailable values. Use `GEX_NOT_PRINTABLE`. Structure substitutes are not GEX.
 
-## Top calls
+## Top calls / top puts
 
-| Rank | Ticker | Score | State | Setup | Trigger | Target | Invalidation | Expiry | Strike | DTE | Delta | Spread % | OI/Vol | IV/EM | Catalyst | GEX source/as-of |
-|---:|---|---:|---|---|---|---|---|---|---:|---:|---:|---:|---|---|---|---|
-| 1 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| 2 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| 3 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| 4 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| 5 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-
-## Top puts
-
-| Rank | Ticker | Score | State | Setup | Trigger | Target | Invalidation | Expiry | Strike | DTE | Delta | Spread % | OI/Vol | IV/EM | Catalyst | GEX source/as-of |
-|---:|---|---:|---|---|---|---|---|---|---:|---:|---:|---:|---|---|---|---|
-| 1 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| 2 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| 3 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| 4 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| 5 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-
-If fewer than five qualify, write `NO QUALIFIED CANDIDATE` in the unused rows.
+Keep five-row tables. Unused rows: `NO QUALIFIED CANDIDATE`.
 
 ## Candidate score decomposition
 
-| Candidate | Gamma/location | Momentum/technical | Catalyst | Flow/VP/breadth | Macro transmission | Contract/liquidity/vol | Risk/invalidation | Total | Hard veto |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
-|  |  |  |  |  |  |  |  |  |  |
-
-Use the weight set corresponding to the candidate’s DTE. Cite evidence for every nonzero component.
+Use the fixed weight column for the candidate’s DTE band. Do not interpolate. Structure substitutes score zero in the gamma column. Sage-confirmation is zero unless verified_established and SAGE_INFORMED and CONSISTENT.
 
 ## Complete packet — Candidate 1
 
-| Field | Value |
-|---|---|
-| Ticker/direction |  |
-| Underlying/as-of |  |
-| Score/state |  |
-| Setup archetype |  |
-| Gamma regime |  |
-| Flip/call wall/put wall |  |
-| Expiry filter and GEX source/as-of |  |
-| VAH/VAL/POC |  |
-| 50 EMA |  |
-| MACD 8-17-9 |  |
-| MACD 12-26-9 |  |
-| ADX/+DI/−DI |  |
-| RSI(34) |  |
-| Fibonacci swing/level |  |
-| Momentum level/acceleration |  |
-| Relative strength/volume |  |
-| Catalyst/date |  |
-| Contract |  |
-| Bid/ask/mid/spread % |  |
-| OI/option volume |  |
-| Delta/gamma/theta/vega |  |
-| IV/RV/expected move |  |
-| Expected holding period |  |
-| Nearby contracts rejected |  |
-| Factor cluster |  |
-| Red-team verdict |  |
+Required fields include operating mode, fusion, SAGE status / claimed / verified, plus existing contract, GEX, technical, and red-team fields. Keep unavailable fields visible as `UNAVAILABLE`.
 
 ```text
 IF
@@ -110,68 +59,6 @@ EXPECTED HORIZON
 WHY THIS CONTRACT
 ```
 
-## Complete packets — Candidates 2 and 3
-
-Repeat the Candidate 1 packet without removing unavailable fields.
-
-## Rejected high-interest names
-
-| Ticker | Proposed direction | Raw score | Exact veto | Evidence needed to reconsider |
-|---|---|---:|---|---|
-|  |  |  |  |  |
-
-## Alternate paths
-
-### Bullish path
-
-```text
-IF
-THEN
-WATCH
-INVALIDATED IF
-```
-
-### Bearish path
-
-```text
-IF
-THEN
-WATCH
-INVALIDATED IF
-```
-
-## Factor-cluster exposure
-
-| Cluster | Candidates/positions | Combined premium risk | Limit | Status |
-|---|---|---:|---:|---|
-| Rates/QT |  |  |  |  |
-| AI/semiconductors |  |  |  |  |
-| Energy/scarcity |  |  |  |  |
-| Small-cap/credit |  |  |  |  |
-| Volatility/gamma |  |  |  |  |
-
-## Paper execution menu
-
-| Candidate | Eligible? | Limit-entry plan | Paper risk % | Quantity | Pretrade path |
-|---|---|---|---:|---:|---|
-|  |  |  |  |  |  |
-
-A score alone never authorizes execution. Every hard gate and current authority must pass. Live remains Owner-only.
-
-## Midday change log
-
-| Time | Candidate | Old state/score | New state/score | Evidence changed | Decision |
-|---|---|---|---|---|---|
-|  |  |  |  |  | UNCHANGED / PROMOTED / REDUCED / INVALIDATED / OPPOSITE_PATH |
-
-Do not overwrite the original board.
-
-## Close review
-
-| Candidate | Triggered? | Underlying result | Option/paper result | MFE/MAE | IV/theta effect | Gamma behavior | Thesis fidelity | Lesson |
-|---|---|---|---|---|---|---|---|---|
-|  |  |  |  |  |  |  |  |  |
-
 ## Required declaration
 
 ```text
@@ -181,4 +68,7 @@ MISSING_DATA_WAS_NOT_INVENTED = TRUE
 GEX_VENDOR_AND_AS_OF_STAMPED = TRUE
 ORIGINAL_THESIS_PRESERVED = TRUE
 PAPER_EXECUTION = FALSE
+OPERATING_MODE = BEHAVIOR_ONLY
+FUSION = INSUFFICIENT
+VERIFIED_ESTABLISHED = FALSE
 ```
