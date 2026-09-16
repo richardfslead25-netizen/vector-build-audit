@@ -56,7 +56,7 @@ def test_offline_source_accepts_labeled_synthetic_only():
             dataset="stage1-offline",
             instrument="SPY",
             data_status=DataStatus.SYNTHETIC,
-            entitlement="fixture",
+            entitlement="stage1-synthetic-only",
             synthetic=True,
         ),
     )

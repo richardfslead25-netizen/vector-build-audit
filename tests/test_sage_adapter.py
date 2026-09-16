@@ -61,10 +61,14 @@ def test_complete_established_does_not_admit_sage_informed_in_production():
         "transition_stage": "stable",
         "freeze_identity": "freeze-abc",
     }, now=datetime(2026, 9, 15, 16, tzinfo=timezone.utc))
-    assert ctx.status is SageStatus.ESTABLISHED
+    assert ctx.status is SageStatus.NOT_ESTABLISHED
+    assert ctx.claimed_established is True
+    assert ctx.verified_established is False
     assert ctx.operating_mode is OperatingMode.BEHAVIOR_ONLY
     assert ctx.alignment is AlignmentState.INSUFFICIENT
-    assert "admission disabled" in ctx.reason
+    assert ctx.as_public_dict()["CURRENT_REGIME"] is None
+    assert ctx.as_public_dict()["POSTERIOR"] is None
+    assert "unverified" in ctx.reason or "admission closed" in ctx.reason
 
 def test_no_write_capability():
     adapter = SageReadOnlyAdapter()
