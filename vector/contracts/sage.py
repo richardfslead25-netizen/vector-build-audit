@@ -30,6 +30,8 @@ class SageContext(BaseModel):
     reason: str = ""
     freeze_count_reported: int | None = None
     freeze_count_invented: bool = False
+    claimed_established: bool = False
+    verified_established: bool = False
 
     def as_public_dict(self) -> dict[str, Any]:
         payload = {
@@ -37,6 +39,8 @@ class SageContext(BaseModel):
             "ALIGNMENT": self.alignment.value,
             "OPERATING_MODE": self.operating_mode.value,
             "REASON": self.reason,
+            "CLAIMED_ESTABLISHED": self.claimed_established,
+            "VERIFIED_ESTABLISHED": self.verified_established,
             "CURRENT_REGIME": None,
             "POSTERIOR": None,
             "PERSISTENCE": None,
@@ -45,7 +49,12 @@ class SageContext(BaseModel):
             "FREEZE": None,
             "officialFreezeCount": None,
         }
-        if self.status == SageStatus.ESTABLISHED:
+        publish = (
+            self.verified_established
+            and self.status == SageStatus.ESTABLISHED
+            and self.operating_mode == OperatingMode.SAGE_INFORMED
+        )
+        if publish:
             payload.update({
                 "CURRENT_REGIME": self.upstream.regime,
                 "POSTERIOR": self.upstream.posterior,
@@ -56,5 +65,5 @@ class SageContext(BaseModel):
                 "officialFreezeCount": self.upstream.official_freeze_count,
             })
         elif self.status in {SageStatus.NOT_ESTABLISHED, SageStatus.STALE, SageStatus.INVALID}:
-            payload["officialFreezeCount"] = self.upstream.official_freeze_count
+            payload["officialFreezeCount"] = self.freeze_count_reported
         return payload

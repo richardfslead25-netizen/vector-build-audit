@@ -5,12 +5,14 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Final
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-RULES_VERSION: Final[str] = "VECTOR-STAGE1-0.1.1"
+RULES_VERSION: Final[str] = "VECTOR-STAGE1-0.1.2"
 TRANSFORMATION_VERSION: Final[str] = "vector-features-0.1.1"
+VECTOR_STAGE: Final[str] = "1"
+APPROVED_ENTITLEMENT: Final[str] = "stage1-synthetic-only"
 
-# Production SAGE_INFORMED admission stays closed until an agreed SAGE contract exists.
+# Production SAGE_INFORMED admission stays closed. Caller Settings cannot open it.
 SAGE_INFORMED_ADMISSION_ENABLED: Final[bool] = False
 SAGE_ALLOWED_SOURCES: Final[frozenset[str]] = frozenset({"SAGE"})
 SAGE_REQUIRED_ESTABLISHED_FIELDS: Final[tuple[str, ...]] = (
@@ -108,6 +110,11 @@ class Settings(BaseModel):
     rules_version: str = RULES_VERSION
     transformation_version: str = TRANSFORMATION_VERSION
     sage_informed_admission_enabled: bool = SAGE_INFORMED_ADMISSION_ENABLED
+
+    @field_validator("sage_informed_admission_enabled")
+    @classmethod
+    def _lock_sage_admission(cls, _value: bool) -> bool:
+        return False
 
 
 DEFAULT_SETTINGS = Settings()
