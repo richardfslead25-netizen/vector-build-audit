@@ -12,11 +12,13 @@ This repository is **not** SIGIL. It is **not** SAGE. It is the downstream optio
 
 ```text
 LIVE_EXECUTION_AUTHORIZED = FALSE
-PAPER_EXECUTION = FALSE unless Owner activates it in-session
+PAPER_EXECUTION_ENABLED = FALSE
 OWNER_FINAL_AUTHORITY = TRUE
 SAGE_STATUS = NOT_ESTABLISHED
-officialFreezeCount = 0
+VECTOR_WRITES_TO_SAGE = false
 ```
+
+Do not invent `officialFreezeCount` when SAGE is `UNAVAILABLE`.
 
 ## Layout
 
@@ -33,6 +35,7 @@ GPT-AUDIT.md
 vector/
 tests/
 docs/
+docs/WEBULL-ENTITLEMENT-QUESTIONS.md
 audits/2026-09-15-stage1-gpt-mailbox.md
 ```
 
@@ -44,10 +47,11 @@ audits/2026-09-15-stage1-gpt-mailbox.md
 4. `skill/references/system-architecture.md` — SIGIL/SAGE/fusion contract.
 5. `skill/SKILL.md` — operating skill.
 6. Remaining references and the board template.
+7. `docs/WEBULL-ENTITLEMENT-QUESTIONS.md` — Stage 2 provider gate.
 
 ## Stage 1 implementation (`build/stage-1-contracts`)
 
-Typed Python contracts, deterministic scoring, eligibility gates, read-only SAGE adapter, synthetic demonstration, and offline tests live under `vector/` and `tests/`.
+Typed Python contracts, deterministic scoring, eligibility gates, read-only SAGE adapter, synthetic demonstration, append-only journal, offline ingestion boundary, and offline tests live under `vector/` and `tests/`.
 
 ```text
 RESEARCH_ENABLED = true
@@ -55,15 +59,9 @@ PAPER_EXECUTION_ENABLED = false
 LIVE_EXECUTION_ENABLED = false
 ```
 
-Stage 1 corrections to the authority block above:
-
-- Do not invent `officialFreezeCount` when SAGE is `UNAVAILABLE`.
-- `BEHAVIOR_ONLY` continues without an established SAGE freeze.
-- Conflicts with older interpolation / gamma-substitute wording: `docs/CONFLICTS.md`.
-
 ```text
 PYTHONPATH=. pytest -q
 PYTHONPATH=. python -m vector.demo.run_stage1
 ```
 
-VECTOR remains downstream of SAGE. No write path. No broker orders.
+VECTOR remains downstream of SAGE. No write path. No broker orders. An app subscription is not programmatic market-data access.
