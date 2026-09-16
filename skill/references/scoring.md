@@ -1,8 +1,13 @@
 # Scoring, Contract Rules, and Packet Fields
 
-## DTE-adjusted scoring
+## DTE-band scoring
 
-Score every eligible candidate from 0–100. Interpolate linearly between the anchor weight sets when DTE falls between anchors.
+Score every eligible candidate from 0–100. Use one fixed weight set for the candidate’s DTE band. Do not interpolate between bands.
+
+- 14–21 DTE uses the 14–21 column only
+- 22–35 DTE uses the 22–35 column only
+- 36–45 DTE uses the 36–45 column only
+- DTE outside 14–45 is a hard veto, not a scored band
 
 | Factor | 14–21 DTE | 22–35 DTE | 36–45 DTE |
 |---|---:|---:|---:|
@@ -29,13 +34,13 @@ A hard veto overrides the numeric score.
 | 62–71 | WATCH | Track only |
 | below 62 | REJECT | Do not present as a potential trade |
 
-Premarket rows may be labeled `WATCH` or `B_DEVELOPING` even before a live chain. They are not trade-ready.
+Premarket rows may be labeled `WATCH` or `B_DEVELOPING` even before a live chain. They are not trade-ready. Stage 1 still cannot promote live-data A / A_PLUS.
 
 ## Factor scoring guidance
 
 ### Gamma regime and location
 
-Award only for sourced, timestamped GEX or a clearly labeled structure substitute. Full points require regime, flip, both walls, expiry filter, and a coherent location relative to spot. Penalize near-flip with insufficient room, mixed vendor boards, or stale EOD used as live.
+Award gamma points only for sourced, timestamped vendor GEX with vendor, methodology, symbol, expiry coverage, as-of, units, sign convention, and spot reference. Stage 1 `GAMMA_UNAVAILABLE` receives zero gamma points. A technical structure substitute may locate price; it does not earn the gamma bucket. Full gamma points require regime, flip, both walls, expiry filter, and a coherent location relative to spot. Penalize near-flip with insufficient room, mixed vendor boards, or stale EOD used as live.
 
 ### Momentum and technical structure
 
@@ -53,7 +58,7 @@ Award for VAH/VAL/POC context, sweep-versus-run classification, breadth, and ord
 
 Award only when expected effects are visible in rates, dollar, commodities, credit, breadth, sector, or the security itself. SIGIL/SAGE context without transmission evidence scores near zero.
 
-If SAGE is `NOT_ESTABLISHED` or SIGIL is unavailable, award zero Sage-confirmation points. Fusion `INSUFFICIENT` caps this bucket. Fusion `INCONSISTENT` penalizes this bucket even if the tape setup is otherwise valid.
+Sage-confirmation points require `verified_established = True`, `OPERATING_MODE = SAGE_INFORMED`, and fusion `CONSISTENT`. A self-declared or structurally complete claim is `claimed_established` only and scores zero confirmation. `NOT_ESTABLISHED`, `UNAVAILABLE`, `INVALID`, `STALE`, or SIGIL-only payloads score zero Sage-confirmation points. Fusion `INSUFFICIENT` caps the macro bucket. Fusion `INCONSISTENT` penalizes the bucket even if the tape setup is otherwise valid. Observed transmission remains a separate subfactor.
 
 ### Contract, liquidity, and volatility economics
 
@@ -65,21 +70,13 @@ Award only for a specific, mutually exclusive invalidation, a defined target pat
 
 ## Contract comparison rule
 
-Before locking a strike, compare at least one nearby strike and one nearby eligible expiration. Reject the candidate if the selected contract wins only because it is cheap.
+Before locking a strike, compare at least one nearby strike and one nearby eligible expiration on the same underlying and option right. Reject the candidate if the selected contract wins only because it is cheap.
 
 Record why this contract beat the alternatives under `WHY THIS CONTRACT`.
 
 ## Directionally correct still losing
 
-Do not promote a contract that can be right on direction and still lose because:
-
-- the move is too small versus premium and slippage
-- the move is too slow versus theta
-- IV crush after the catalyst
-- the strike is a lottery
-- the spread consumes the edge
-- the catalyst is already priced
-- DTE and holding period are mismatched
+Do not promote a contract that can be right on direction and still lose because of premium, theta, IV crush, lottery delta, spread, priced catalyst, or DTE mismatch.
 
 Correct direction is not a score floor.
 
@@ -87,6 +84,9 @@ Correct direction is not a score floor.
 
 For every serious candidate include where available:
 
+- operating mode (`BEHAVIOR_ONLY` / `SAGE_INFORMED`)
+- fusion (`CONSISTENT` / `INCONSISTENT` / `INSUFFICIENT`)
+- SAGE status, claimed_established, verified_established
 - rank, ticker, call or put
 - score and classification
 - setup type
@@ -111,12 +111,6 @@ If a field cannot be printed, keep the field and write `UNAVAILABLE`.
 
 ## Suggested paper-risk bands
 
-Only if paper authority is active. Never live sizing.
-
-- A_PLUS — premium at risk 0.75%–1.25% of paper NAV
-- A — 0.50%–0.75%
-- below A — no new paper option position
-- maximum aggregate premium at risk — 5% of paper NAV
-- maximum one-factor cluster — 2% unless explicitly documented
+Only if paper authority is active. Never live sizing. Stage 1 paper remains off.
 
 A score alone never authorizes execution.
