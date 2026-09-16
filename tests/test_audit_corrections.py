@@ -169,4 +169,5 @@ def test_pipeline_blocks_promotion_without_geometry_and_comparisons():
     assert "MISSING_NEARBY_STRIKE" in packet.vetoes
     assert "MISSING_NEARBY_EXPIRATION" in packet.vetoes
     assert packet.disposition.value == "NO_TRADE"
-    assert "stub critique" in packet.red_team.attack
+    assert packet.red_team.verdict.value == "KILL"
+    assert "Stage 1 red team cannot PROMOTE" in packet.red_team.attack
