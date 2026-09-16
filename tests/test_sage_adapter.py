@@ -1,3 +1,4 @@
+
 from datetime import datetime, timezone
 import pytest
 from vector.contracts.enums import AlignmentState, OperatingMode, SageStatus
@@ -22,7 +23,17 @@ def test_not_established_preserves_supplied_count_only():
     assert ctx.as_public_dict()["officialFreezeCount"] == 0
 
 def test_stale_established_payload_is_stale_not_informed():
-    ctx = SageReadOnlyAdapter().ingest({"established":True,"regime":"risk-on","source_identity":"SAGE","cutoff":"2026-01-01T00:00:00+00:00","official_freeze_count":4}, now=datetime(2026,9,15,tzinfo=timezone.utc))
+    ctx = SageReadOnlyAdapter().ingest({
+        "established": True,
+        "regime": "risk-on",
+        "source_identity": "SAGE",
+        "schema_version": "sage-unagreed-placeholder",
+        "cutoff": "2026-01-01T00:00:00+00:00",
+        "receipt_time": "2026-01-01T00:05:00+00:00",
+        "freeze_identity": "old-freeze",
+        "posterior": {"risk-on": 1.0},
+        "official_freeze_count": 4,
+    }, now=datetime(2026, 9, 15, tzinfo=timezone.utc))
     assert ctx.status is SageStatus.STALE
     assert ctx.operating_mode is OperatingMode.BEHAVIOR_ONLY
 
@@ -35,11 +46,25 @@ def test_sigil_does_not_confer_sage_confirmation():
     assert ctx.status is SageStatus.UNAVAILABLE
     assert "SIGIL" in ctx.reason
 
-def test_established_consistent_alignment():
-    ctx = SageReadOnlyAdapter().ingest({"established":True,"regime":"risk-on-expansion","source_identity":"SAGE","cutoff":"2026-09-15T12:00:00+00:00","official_freeze_count":1,"posterior":{"risk-on-expansion":0.61},"persistence":{"value":0.4},"successors":["tightening"],"transition_stage":"stable","freeze_identity":"freeze-abc"}, now=datetime(2026,9,15,16,tzinfo=timezone.utc), observed_direction="CALL", transmission_observed=True)
+def test_complete_established_does_not_admit_sage_informed_in_production():
+    ctx = SageReadOnlyAdapter().ingest({
+        "established": True,
+        "regime": "risk-on-expansion",
+        "source_identity": "SAGE",
+        "schema_version": "sage-unagreed-placeholder",
+        "cutoff": "2026-09-15T12:00:00+00:00",
+        "receipt_time": "2026-09-15T12:05:00+00:00",
+        "official_freeze_count": 1,
+        "posterior": {"risk-on-expansion": 1.0},
+        "persistence": {"value": 0.4},
+        "successors": ["tightening"],
+        "transition_stage": "stable",
+        "freeze_identity": "freeze-abc",
+    }, now=datetime(2026, 9, 15, 16, tzinfo=timezone.utc))
     assert ctx.status is SageStatus.ESTABLISHED
-    assert ctx.operating_mode is OperatingMode.SAGE_INFORMED
-    assert ctx.alignment is AlignmentState.CONSISTENT
+    assert ctx.operating_mode is OperatingMode.BEHAVIOR_ONLY
+    assert ctx.alignment is AlignmentState.INSUFFICIENT
+    assert "admission disabled" in ctx.reason
 
 def test_no_write_capability():
     adapter = SageReadOnlyAdapter()
