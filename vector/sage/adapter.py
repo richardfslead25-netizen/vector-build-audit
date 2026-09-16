@@ -137,6 +137,7 @@ class SageReadOnlyAdapter:
         upstream: SageUpstreamFields,
         now: datetime,
     ) -> SageContext:
+        synthetic = bool(payload.get("synthetic") or payload.get("allow_research_established"))
         missing = [name for name in SAGE_REQUIRED_ESTABLISHED_FIELDS if not getattr(upstream, name)]
         source = (upstream.source_identity or "").upper()
         if source not in {s.upper() for s in SAGE_ALLOWED_SOURCES}:
@@ -148,6 +149,7 @@ class SageReadOnlyAdapter:
                 reason=f"unknown or disallowed SAGE source_identity={upstream.source_identity!r}",
                 freeze_count_reported=upstream.official_freeze_count,
                 freeze_count_invented=False,
+                claimed_established=True,
             )
         if missing:
             return SageContext(
@@ -158,6 +160,7 @@ class SageReadOnlyAdapter:
                 reason=f"forged or incomplete ESTABLISHED claim; missing {missing}",
                 freeze_count_reported=upstream.official_freeze_count,
                 freeze_count_invented=False,
+                claimed_established=True,
             )
         time_error = _timestamp_policy(upstream.cutoff, upstream.receipt_time, now)
         if time_error:
@@ -169,6 +172,7 @@ class SageReadOnlyAdapter:
                 reason=time_error,
                 freeze_count_reported=upstream.official_freeze_count,
                 freeze_count_invented=False,
+                claimed_established=True,
             )
         posterior_error = _posterior_policy(upstream.posterior)
         if posterior_error:
@@ -180,6 +184,7 @@ class SageReadOnlyAdapter:
                 reason=posterior_error,
                 freeze_count_reported=upstream.official_freeze_count,
                 freeze_count_invented=False,
+                claimed_established=True,
             )
         cutoff = _aware(upstream.cutoff)
         if cutoff is not None and now - cutoff > self.settings.freshness.sage_max_age:
@@ -188,53 +193,25 @@ class SageReadOnlyAdapter:
                 alignment=AlignmentState.INSUFFICIENT,
                 operating_mode=OperatingMode.BEHAVIOR_ONLY,
                 upstream=upstream,
+                provenance=_claim_provenance(source, upstream, now, synthetic),
                 reason=f"SAGE cutoff older than {self.settings.freshness.sage_max_age}",
                 freeze_count_reported=upstream.official_freeze_count,
                 freeze_count_invented=False,
+                claimed_established=True,
             )
 
-        synthetic = bool(payload.get("synthetic") or payload.get("allow_research_established"))
-        admission = self.settings.sage_informed_admission_enabled
-        if not admission:
-            return SageContext(
-                status=SageStatus.ESTABLISHED,
-                alignment=AlignmentState.INSUFFICIENT,
-                operating_mode=OperatingMode.BEHAVIOR_ONLY,
-                upstream=upstream,
-                provenance=Provenance(
-                    provider=source,
-                    dataset="sage-freeze",
-                    instrument="macro-regime",
-                    observation_time=upstream.cutoff,
-                    retrieval_time=upstream.receipt_time or now,
-                    data_status=DataStatus.SYNTHETIC if synthetic else DataStatus.UNKNOWN,
-                    synthetic=synthetic,
-                ),
-                reason="validated fields present but SAGE_INFORMED admission disabled pending agreed contract",
-                freeze_count_reported=upstream.official_freeze_count,
-                freeze_count_invented=False,
-            )
-
-        supplied_alignment = str(payload.get("alignment") or "").upper()
-        alignment = AlignmentState.INSUFFICIENT
-        if supplied_alignment in {s.value for s in AlignmentState}:
-            alignment = AlignmentState(supplied_alignment)
+        # Production admission is locked off in Settings. A complete claim is not a verified freeze.
         return SageContext(
-            status=SageStatus.ESTABLISHED,
-            alignment=alignment,
-            operating_mode=OperatingMode.SAGE_INFORMED,
+            status=SageStatus.NOT_ESTABLISHED,
+            alignment=AlignmentState.INSUFFICIENT,
+            operating_mode=OperatingMode.BEHAVIOR_ONLY,
             upstream=upstream,
-            provenance=Provenance(
-                provider=source,
-                dataset="sage-freeze",
-                instrument="macro-regime",
-                observation_time=upstream.cutoff,
-                retrieval_time=upstream.receipt_time or now,
-                data_status=DataStatus.UNKNOWN,
-            ),
-            reason="admission enabled; alignment taken only from explicit upstream field",
+            provenance=_claim_provenance(source, upstream, now, synthetic),
+            reason="structurally complete SAGE claim remains unverified; SAGE_INFORMED admission closed",
             freeze_count_reported=upstream.official_freeze_count,
             freeze_count_invented=False,
+            claimed_established=True,
+            verified_established=False,
         )
 
     def _parse_upstream(self, payload: Mapping[str, Any]) -> SageUpstreamFields:
@@ -268,6 +245,20 @@ class SageReadOnlyAdapter:
         )
 
 
+def _claim_provenance(source: str, upstream: SageUpstreamFields, now: datetime, synthetic: bool) -> Provenance:
+    return Provenance(
+        provider=source,
+        dataset="sage-claim",
+        instrument="macro-regime",
+        observation_time=upstream.cutoff,
+        retrieval_time=upstream.receipt_time or now,
+        data_status=DataStatus.SYNTHETIC if synthetic else DataStatus.UNKNOWN,
+        synthetic=synthetic,
+        entitlement="unverified",
+        permitted_use="research-only",
+    )
+
+
 def _as_dt(value: Any) -> datetime | None:
     if value is None:
         return None
@@ -293,25 +284,32 @@ def _timestamp_policy(cutoff: datetime | None, receipt: datetime | None, now: da
         return "naive SAGE timestamps rejected"
     if cutoff > now or receipt > now:
         return "future SAGE timestamp rejected"
+    if receipt < cutoff:
+        return "receipt_time precedes observation cutoff"
     return None
 
 
 def _posterior_policy(posterior: Any) -> str | None:
     if posterior is None:
         return "missing posterior distribution"
+    if isinstance(posterior, bool) or isinstance(posterior, str):
+        return "malformed posterior: coerced boolean or string probability rejected"
     if isinstance(posterior, (int, float)):
         return "malformed posterior: scalar is not a distribution"
     if not isinstance(posterior, dict) or not posterior:
         return "malformed posterior distribution"
     total = 0.0
     for key, value in posterior.items():
-        try:
-            number = float(value)
-        except (TypeError, ValueError):
+        if isinstance(value, bool) or isinstance(value, str):
+            return f"malformed posterior value for {key}: coerced type rejected"
+        if not isinstance(value, (int, float)):
             return f"malformed posterior value for {key}"
-        if number != number or number < 0:
+        number = float(value)
+        if number != number or number < 0 or number > 1.0:
             return f"malformed posterior value for {key}"
         total += number
-    if total <= 0 or abs(total - 1.0) > 0.05:
+    if total <= 0 or total > 1.0:
+        return f"malformed posterior: masses sum to {total}"
+    if abs(total - 1.0) > 1e-6:
         return f"malformed posterior: masses sum to {total}"
     return None
