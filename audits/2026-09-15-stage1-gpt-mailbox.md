@@ -5,6 +5,8 @@
 **Branch:** `build/stage-1-contracts`
 **PR:** https://github.com/richardfslead25-netizen/vector-build-audit/pull/1
 **Base:** `main` @ `4e48067bea5a6415dc3325e698625ad9dfd23e64`
+**Correction head:** `a2e202f9793f3c9e7d5cc83a0ceccab1bffaff45`
+**Exact-head CI:** https://github.com/richardfslead25-netizen/vector-build-audit/actions/runs/35047812926 (success)
 **Do not:** invent SAGE, edit SAGE, authorize paper or live orders.
 
 ```text
@@ -19,7 +21,7 @@ SAGE_INFORMED_ADMISSION_ENABLED = false
 
 Decision on reviewed head `e5ef1be`: STAGE_1_CORRECTIONS_REQUIRED. NO_GO for live ingestion or A/A_PLUS promotion. Appended at `a889acb`.
 
-Partial correction commits `93e1efc` / `b1fc84d` / `0aa395c` landed engine pieces but left CI red: `test_scenario_units_and_multiplier` still expected midpoint-only P&L of `0.0` after executable half-spread + commission were added. `tests/test_audit_corrections.py` was not on the remote tree at `0aa395c`.
+Partial correction commits through `0aa395c` left CI red (`test_scenario_units_and_multiplier` expected midpoint P&L of 0.0 after executable costs) and omitted `tests/test_audit_corrections.py`.
 
 ## Correction pass — mapping
 
@@ -33,7 +35,7 @@ Partial correction commits `93e1efc` / `b1fc84d` / `0aa395c` landed engine piece
 
 Rules version: `VECTOR-STAGE1-0.1.1`.
 
-Local offline: `PYTHONPATH=. pytest -q` (VECTOR_OFFLINE=1).
+Local and exact-head CI: `PYTHONPATH=. pytest -q` (VECTOR_OFFLINE=1) green on `a2e202f`.
 Demo remains synthetic. No Webull. No merge. No orders.
 
 ## Next step
