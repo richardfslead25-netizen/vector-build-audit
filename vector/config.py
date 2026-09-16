@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 RULES_VERSION: Final[str] = "VECTOR-STAGE1-0.1.1"
 TRANSFORMATION_VERSION: Final[str] = "vector-features-0.1.1"
 
+# Production SAGE_INFORMED admission stays closed until an agreed SAGE contract exists.
 SAGE_INFORMED_ADMISSION_ENABLED: Final[bool] = False
 SAGE_ALLOWED_SOURCES: Final[frozenset[str]] = frozenset({"SAGE"})
 SAGE_REQUIRED_ESTABLISHED_FIELDS: Final[tuple[str, ...]] = (
