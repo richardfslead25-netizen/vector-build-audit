@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 from vector.contracts.enums import DataStatus, GammaRegime, OptionRight
@@ -21,13 +22,13 @@ def make_bars(n: int = 60, start: float = 100.0, step: float = 0.4):
     return out
 
 def make_contract(**kwargs):
-    base = dict(underlying="SPY", occ_symbol="SPY260925C00580000", right=OptionRight.CALL,
-        strike=580.0, expiration=date(2026,9,25), multiplier=100, dte=18, bid=6.10, ask=6.30,
+    base = dict(underlying="SPY", occ_symbol="SPY261002C00580000", right=OptionRight.CALL,
+        strike=580.0, expiration=date(2026,10,2), multiplier=100, dte=17, bid=6.10, ask=6.30,
         volume=1200, open_interest=4500, oi_reporting_date=date(2026,9,14),
         delta=0.42, gamma=0.03, theta=-0.12, vega=0.18, iv=0.22,
         quote_time=datetime(2026,9,15,16,tzinfo=timezone.utc),
         greeks_time=datetime(2026,9,15,16,tzinfo=timezone.utc),
-        provenance=synthetic_provenance("SPY260925C00580000"))
+        provenance=synthetic_provenance("SPY261002C00580000"))
     base.update(kwargs)
     return OptionContract(**base)
 
@@ -52,13 +53,22 @@ def make_market(**kwargs):
     base = dict(symbol="SPY", spot=582.0, spot_time=datetime(2026,9,15,16,tzinfo=timezone.utc),
         features=make_features(), gamma=make_gamma(), catalyst_id="FOMC-minutes",
         catalyst_verified=True, catalyst_time=datetime(2026,9,17,18,tzinfo=timezone.utc),
-        catalyst_inside_horizon=True, transmission_observed=True, volume_profile_present=True,
+        catalyst_inside_horizon=True, transmission_observed=True, transmission_notes="SPY held overnight high after minutes",
+        volume_profile_present=True,
         breadth_present=True, order_flow_present=False, provenance=synthetic_provenance("SPY"))
     base.update(kwargs)
     return MarketSnapshot(**base)
 
 def make_thesis():
-    return Thesis(trigger="accept above 580", expected_response="continuation toward 600",
-        because="verified catalyst plus tape expansion", invalidated_if="close back below 574",
-        alternate_path="failed break -> put path", expected_horizon="5-8 sessions",
-        why_this_contract="0.42d Friday vs nearby 0.35 / next week")
+    return Thesis(
+        trigger="accept above 580",
+        expected_response="continuation toward 600",
+        because="verified catalyst plus tape expansion",
+        invalidated_if="close back below 574",
+        alternate_path="failed break -> put path",
+        expected_horizon="5-8 sessions",
+        why_this_contract="0.42d Friday vs nearby 0.35 / next week",
+        target_price=600.0,
+        invalidation_price=574.0,
+        horizon_sessions=7,
+    )

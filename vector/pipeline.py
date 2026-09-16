@@ -1,16 +1,20 @@
 from __future__ import annotations
+
 from datetime import datetime, timezone
 from uuid import uuid4
-from vector.config import DEFAULT_AUTHORITY, DEFAULT_SETTINGS, RULES_VERSION
+
+from vector.config import DEFAULT_AUTHORITY, DEFAULT_SETTINGS, RULES_VERSION, Settings
 from vector.contracts.enums import Direction, Disposition, GammaVariant
 from vector.contracts.market import MarketSnapshot
-from vector.contracts.packet import ResearchPacket
-from vector.eligibility.gates import evaluate_eligibility
-from vector.features.expiration import classify_dte_band
+from vector.contracts.options import OptionContract
+from vector.contracts.packet import ResearchPacket, Thesis
+from vector.eligibility.gates import coherence_vetoes, evaluate_eligibility
+from vector.features.expiration import calendar_dte, classify_dte_band
 from vector.redteam.critique import critique
 from vector.sage.adapter import SageReadOnlyAdapter
 from vector.scoring.engine import ScoreInputs, score_candidate
-from vector.scoring.scenarios import estimate_scenarios, scenarios_support_thesis
+from vector.scoring.scenarios import estimate_scenarios, scenarios_available, scenarios_support_thesis
+
 
 def gamma_variant_of(market: MarketSnapshot) -> GammaVariant:
     g = market.gamma
@@ -21,28 +25,84 @@ def gamma_variant_of(market: MarketSnapshot) -> GammaVariant:
     )
     return GammaVariant.GAMMA_CONFIRMED if required else GammaVariant.GAMMA_UNAVAILABLE
 
-def evaluate_candidate(*, ticker, direction, setup, market, contract, thesis, sage_payload,
-                       alternatives=None, listed_expirations=None, cutoff=None, settings=None,
-                       run_id=None, premarket_without_live_chain=False) -> ResearchPacket:
+
+def _comparison_flags(contract: OptionContract | None, alternatives: list[OptionContract]) -> tuple[bool, bool]:
+    if contract is None:
+        return False, False
+    nearby_strike = any(
+        alt.expiration == contract.expiration and abs(alt.strike - contract.strike) > 1e-9
+        for alt in alternatives
+    )
+    nearby_expiry = any(alt.expiration != contract.expiration for alt in alternatives)
+    return nearby_strike, nearby_expiry
+
+
+def evaluate_candidate(
+    *,
+    ticker,
+    direction,
+    setup,
+    market,
+    contract,
+    thesis,
+    sage_payload,
+    alternatives=None,
+    listed_expirations=None,
+    cutoff=None,
+    settings=None,
+    run_id=None,
+    premarket_without_live_chain=False,
+) -> ResearchPacket:
     settings = settings or DEFAULT_SETTINGS
     cutoff = cutoff or datetime.now(timezone.utc)
     sage = SageReadOnlyAdapter(settings).ingest(
-        sage_payload, now=cutoff, observed_direction=direction.value,
+        sage_payload,
+        now=cutoff,
+        observed_direction=direction.value,
         transmission_observed=market.transmission_observed,
     )
     variant = gamma_variant_of(market)
-    alternatives = alternatives or []
-    vetoes = evaluate_eligibility(contract, now=cutoff, listed_expirations=listed_expirations,
-                                  settings=settings, premarket_without_live_chain=premarket_without_live_chain)
-    scenarios, scenario_ok = [], None
-    if contract is not None and market.spot:
-        scenarios = estimate_scenarios(contract, market.spot, settings)
-        scenario_ok = scenarios_support_thesis(contract, market.spot, contract.right, settings)
-    dte = contract.dte if contract is not None else 0
+    alternatives = list(alternatives or [])
+    working = contract.model_copy() if contract is not None else None
+    vetoes = evaluate_eligibility(
+        working,
+        now=cutoff,
+        listed_expirations=listed_expirations,
+        settings=settings,
+        premarket_without_live_chain=premarket_without_live_chain,
+        as_of_date=cutoff.date(),
+    )
+    vetoes.extend(coherence_vetoes(ticker=ticker, direction=direction, market=market, contract=working))
+    nearby_strike, nearby_expiry = _comparison_flags(working, alternatives)
+    if working is not None and not nearby_strike:
+        vetoes.append("MISSING_NEARBY_STRIKE")
+    if working is not None and not nearby_expiry:
+        vetoes.append("MISSING_NEARBY_EXPIRATION")
+    if thesis.target_price is None or thesis.invalidation_price is None or thesis.horizon_sessions is None:
+        vetoes.append("THESIS_GEOMETRY_INCOMPLETE")
+    scenarios, scenario_ok, scenario_avail = [], None, False
+    if working is not None and market.spot:
+        scenario_avail = scenarios_available(working, market.spot)
+        if scenario_avail:
+            scenarios = estimate_scenarios(working, market.spot, settings)
+            scenario_ok = scenarios_support_thesis(working, market.spot, working.right, settings, thesis)
+        else:
+            vetoes.append("SCENARIOS_UNAVAILABLE")
+    if scenario_avail and scenario_ok is False:
+        vetoes.append("SCENARIO_ECONOMICS_FAIL")
+    dte = calendar_dte(cutoff.date(), working.expiration) if working is not None else 0
     score = score_candidate(ScoreInputs(
-        direction=direction, dte=dte, sage=sage, gamma_variant=variant, market=market,
-        contract=contract, thesis=thesis, has_nearby_comparison=len(alternatives) >= 1,
+        direction=direction,
+        dte=dte,
+        sage=sage,
+        gamma_variant=variant,
+        market=market,
+        contract=working,
+        thesis=thesis,
+        has_nearby_strike=nearby_strike,
+        has_nearby_expiration=nearby_expiry,
         scenario_supportive=scenario_ok,
+        scenario_available=scenario_avail,
     ), settings)
     disposition = Disposition.WATCH
     if vetoes:
@@ -50,14 +110,32 @@ def evaluate_candidate(*, ticker, direction, setup, market, contract, thesis, sa
     elif score.grade.value == "REJECT":
         disposition = Disposition.REJECT
     packet = ResearchPacket(
-        run_id=run_id or uuid4().hex[:12], cutoff=cutoff, generated_at=datetime.now(timezone.utc),
-        rules_version=RULES_VERSION, operating_mode=sage.operating_mode, gamma_variant=variant,
-        sage=sage, alignment=sage.alignment, ticker=ticker, direction=direction, setup=setup,
-        thesis=thesis, contract=contract, alternatives=alternatives, scenarios=scenarios,
-        score=score, vetoes=vetoes, missing_evidence=list(score.missing_subfactors),
-        disposition=disposition, authority=DEFAULT_AUTHORITY.model_copy(),
-        notes=[f"dte_band={classify_dte_band(dte).value}", f"mode={sage.operating_mode.value}",
-               f"gamma_variant={variant.value}"],
+        run_id=run_id or uuid4().hex[:12],
+        cutoff=cutoff,
+        generated_at=datetime.now(timezone.utc),
+        rules_version=RULES_VERSION,
+        operating_mode=sage.operating_mode,
+        gamma_variant=variant,
+        sage=sage,
+        alignment=sage.alignment,
+        ticker=ticker,
+        direction=direction,
+        setup=setup,
+        thesis=thesis.model_copy(),
+        contract=working,
+        alternatives=alternatives,
+        scenarios=scenarios,
+        score=score,
+        vetoes=list(dict.fromkeys(vetoes)),
+        missing_evidence=list(score.missing_subfactors),
+        disposition=disposition,
+        authority=DEFAULT_AUTHORITY.model_copy(),
+        notes=[
+            f"dte_band={classify_dte_band(dte).value}",
+            f"mode={sage.operating_mode.value}",
+            f"gamma_variant={variant.value}",
+            "red_team=stub",
+        ],
     )
     if packet.authority.paper_execution_enabled or packet.authority.live_execution_enabled:
         packet.vetoes.append("EXECUTION_AUTHORITY_MUST_REMAIN_DISABLED")

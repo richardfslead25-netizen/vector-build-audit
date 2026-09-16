@@ -19,15 +19,17 @@ SAGE_INFORMED_ADMISSION_ENABLED = false
 
 Decision on reviewed head `e5ef1be`: STAGE_1_CORRECTIONS_REQUIRED. NO_GO for live ingestion or A/A_PLUS promotion. Appended at `a889acb`.
 
+Partial correction commits `93e1efc` / `b1fc84d` / `0aa395c` landed engine pieces but left CI red: `test_scenario_units_and_multiplier` still expected midpoint-only P&L of `0.0` after executable half-spread + commission were added. `tests/test_audit_corrections.py` was not on the remote tree at `0aa395c`.
+
 ## Correction pass — mapping
 
 | Finding | Fix | Tests |
 |---|---|---|
-| P0 SAGE loose ESTABLISHED / substring polarity / future cutoff / unknown source / malformed posterior | Production `SAGE_INFORMED` admission disabled. Required schema/source/cutoff/receipt/freeze/regime/posterior. No regime-name CALL/PUT inference. Future and naive timestamps rejected. | `tests/test_sage_adapter.py`, `tests/test_audit_corrections.py` |
-| P0 eligibility timestamps, DTE, OCC, listings, coherence | Required quote/Greeks times; naive/future rejected; DTE derived vs claimed; OCC parse of root/right/strike/expiry; listings required; ticker/market/gamma/right coherence. Gates no longer mutate caller quote_quality. | `tests/test_eligibility.py`, `tests/test_audit_corrections.py` |
+| P0 SAGE loose ESTABLISHED / substring polarity / future cutoff / unknown source / malformed posterior | Production `SAGE_INFORMED` admission disabled. Required schema/source/cutoff/receipt/freeze/regime/posterior. No regime-name CALL/PUT inference. Future and naive timestamps rejected. SIGIL isolated. | `tests/test_sage_adapter.py`, `tests/test_audit_corrections.py` |
+| P0 eligibility timestamps, DTE, OCC, listings, coherence | Required quote/Greeks times; naive/future rejected; DTE derived vs claimed; OCC parse of root/right/strike/expiry; listings required; ticker/market/gamma/right coherence. Gates do not mutate caller quote_quality. | `tests/test_eligibility.py`, `tests/test_audit_corrections.py` |
 | P1 wrong-way walls / unsigned RS / asserted presence / text-only target / one comparison | Directional runway and RS. Transmission needs notes. Target/invalidation require numeric geometry. Nearby strike AND nearby expiration. | `tests/test_scoring.py`, `tests/test_audit_corrections.py` |
 | P1 scenarios mid-only, missing Greeks as zero, score-only PROMOTE | Missing Greeks → unavailable scenarios. P&L uses quoted half-spread + commission both sides. Promotion blocked without geometry/comparisons/supportive net P&L. Critique labeled stub. | `tests/test_pipeline_and_authority.py`, `tests/test_audit_corrections.py` |
-| Hygiene interpolation / unpinned CI | `scoring.md` now forbids interpolation. CI installs `.[dev]` from `pyproject.toml`. | workflow `ci.yml` |
+| Hygiene interpolation / unpinned CI | `scoring.md` forbids interpolation. CI installs `.[dev]` from `pyproject.toml`. | workflow `ci.yml` |
 
 Rules version: `VECTOR-STAGE1-0.1.1`.
 

@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 import json, sys
 from datetime import date, datetime, timezone
@@ -8,7 +9,7 @@ from vector.pipeline import evaluate_candidate
 
 def main():
     cutoff = datetime(2026,9,15,16,5,tzinfo=timezone.utc)
-    listed = {date(2026,9,25), date(2026,10,2)}
+    listed = {date(2026,10,2), date(2026,10,9)}
     cases = [
         ("behavior_only_strong_tape", None, True, {}),
         ("gamma_unavailable", None, False, {}),
@@ -21,7 +22,10 @@ def main():
         packets.append(evaluate_candidate(
             ticker="SPY", direction=Direction.CALL, setup=name, market=market,
             contract=make_contract(**extra),
-            alternatives=[make_contract(occ_symbol="SPY260925C00585000", strike=585.0, delta=0.38)],
+            alternatives=[
+                make_contract(occ_symbol="SPY261002C00585000", strike=585.0, delta=0.38),
+                make_contract(occ_symbol="SPY261009C00580000", strike=580.0, expiration=date(2026,10,9), dte=24, delta=0.40),
+            ],
             thesis=make_thesis(), sage_payload=sage, listed_expirations=listed,
             cutoff=cutoff, run_id=f"demo-{name}",
         ))

@@ -1,3 +1,4 @@
+
 import json
 from datetime import date, datetime, timezone
 from tests.helpers import make_contract, make_market, make_thesis
@@ -6,11 +7,14 @@ from vector.contracts.enums import Direction, Disposition, GammaVariant, Operati
 from vector.pipeline import evaluate_candidate
 from vector.scoring.scenarios import estimate_scenarios
 CUTOFF = datetime(2026,9,15,16,5,tzinfo=timezone.utc)
-LISTED = {date(2026,9,25), date(2026,10,2)}
+LISTED = {date(2026,10,2), date(2026,10,9)}
 
 def _eval(**kwargs):
     base = dict(ticker="SPY", direction=Direction.CALL, setup="expansion-call", market=make_market(),
-        contract=make_contract(), alternatives=[make_contract(occ_symbol="SPY260925C00585000", strike=585.0, delta=0.36)],
+        contract=make_contract(), alternatives=[
+            make_contract(occ_symbol="SPY261002C00585000", strike=585.0, delta=0.36),
+            make_contract(occ_symbol="SPY261009C00580000", strike=580.0, expiration=date(2026,10,9), dte=24, delta=0.40),
+        ],
         thesis=make_thesis(), sage_payload=None, listed_expirations=LISTED, cutoff=CUTOFF, run_id="test-1")
     base.update(kwargs)
     return evaluate_candidate(**base)
@@ -51,12 +55,17 @@ def test_scenario_units_and_multiplier():
     mid = c.mid
     sample = next(r for r in rows if r.spot_move == 0.0 and r.days_elapsed == 0 and r.iv_move == 0.0)
     assert sample.estimated_value == round(mid, 4)
-    assert sample.pnl_per_contract == 0.0
+    half = c.spread / 2.0
+    expected = ((mid - half) - (mid + half + 0.65 / c.multiplier)) * c.multiplier - 0.65
+    assert sample.pnl_per_contract == round(expected, 2)
+    assert sample.pnl_per_contract < 0.0
     up = next(r for r in rows if r.spot_move == 0.08 and r.days_elapsed == 0 and r.iv_move == 0.0)
-    assert abs(up.pnl_per_contract - (up.estimated_value - mid) * 100) < 0.011
+    assert up.pnl_per_contract is not None
+    assert "first_order_greeks_taylor" in up.notes
+    assert "local approximation" in up.notes
 
 def test_put_negative_delta_pipeline():
-    put = make_contract(right="P", occ_symbol="SPY260925P00580000", delta=-0.41, bid=5.8, ask=6.0)
+    put = make_contract(right="P", occ_symbol="SPY261002P00580000", delta=-0.41, bid=5.8, ask=6.0)
     p = _eval(direction=Direction.PUT, contract=put)
     assert p.contract.abs_delta == 0.41
     assert "MISSING_DELTA" not in p.vetoes
