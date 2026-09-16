@@ -19,6 +19,9 @@ class Thesis(BaseModel):
     expected_horizon: str
     why_this_contract: str
     original_text: str | None = None
+    target_price: float | None = None
+    invalidation_price: float | None = None
+    horizon_sessions: int | None = None
 
 class ScoreBreakdown(BaseModel):
     dte_band: DteBand

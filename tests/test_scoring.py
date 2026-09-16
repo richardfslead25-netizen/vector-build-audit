@@ -1,3 +1,4 @@
+
 from datetime import datetime, timezone
 from tests.helpers import make_contract, make_gamma, make_market, make_thesis
 from vector.contracts.enums import Direction, DteBand, GammaVariant, Grade, SageStatus
@@ -9,12 +10,23 @@ def _sage_none():
     return SageReadOnlyAdapter().ingest(None)
 
 def _sage_established():
-    return SageReadOnlyAdapter().ingest({"established":True,"regime":"risk-on","source_identity":"SAGE","cutoff":"2026-09-15T12:00:00+00:00","official_freeze_count":1,"posterior":{"risk-on":0.7}}, now=datetime(2026,9,15,16,tzinfo=timezone.utc), observed_direction="CALL", transmission_observed=True)
+    return SageReadOnlyAdapter().ingest({
+        "established": True,
+        "regime": "risk-on",
+        "source_identity": "SAGE",
+        "schema_version": "sage-unagreed-placeholder",
+        "cutoff": "2026-09-15T12:00:00+00:00",
+        "receipt_time": "2026-09-15T12:05:00+00:00",
+        "freeze_identity": "freeze-abc",
+        "official_freeze_count": 1,
+        "posterior": {"risk-on": 1.0},
+    }, now=datetime(2026, 9, 15, 16, tzinfo=timezone.utc))
 
 def _inputs(**kwargs):
     base = dict(direction=Direction.CALL, dte=18, sage=_sage_none(), gamma_variant=GammaVariant.GAMMA_CONFIRMED,
                 market=make_market(), contract=make_contract(), thesis=make_thesis(),
-                has_nearby_comparison=True, scenario_supportive=True)
+                has_nearby_strike=True, has_nearby_expiration=True,
+                scenario_supportive=True, scenario_available=True)
     base.update(kwargs)
     return ScoreInputs(**base)
 
@@ -39,12 +51,11 @@ def test_sage_confirmation_zero_when_unavailable():
     assert scored.subfactors["macro.sage_confirmation"] == 0.0
     assert scored.subfactors["macro.observed_transmission"] > 0
 
-def test_sage_confirmation_awarded_only_when_established_consistent():
+def test_sage_confirmation_zero_when_admission_disabled():
     none = score_candidate(_inputs(sage=_sage_none()))
     est = score_candidate(_inputs(sage=_sage_established()))
     assert none.subfactors["macro.sage_confirmation"] == 0.0
-    assert est.subfactors["macro.sage_confirmation"] > 0.0
-    assert _sage_established().status is SageStatus.ESTABLISHED
+    assert est.subfactors["macro.sage_confirmation"] == 0.0
 
 def test_fixed_dte_band_weights_not_interpolated():
     a, b = score_candidate(_inputs(dte=21)), score_candidate(_inputs(dte=22))

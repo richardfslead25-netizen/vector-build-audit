@@ -1,6 +1,6 @@
 from __future__ import annotations
 from vector.contracts.enums import Disposition, RedTeamVerdict
-from vector.contracts.packet import RedTeamRecord, ResearchPacket
+from vector.contracts.packet import RedTeamRecord, ResearchPacket, Thesis
 
 def critique(packet: ResearchPacket) -> ResearchPacket:
     original = packet.thesis.model_copy()
@@ -13,8 +13,8 @@ def critique(packet: ResearchPacket) -> ResearchPacket:
     if packet.gamma_variant.value == "GAMMA_UNAVAILABLE":
         attacks.append("gamma evidence missing; technical levels are not a substitute")
         survives.append("gamma-unavailable variant is valid if labeled")
-    if packet.sage.status.value != "ESTABLISHED" or packet.operating_mode.value != "SAGE_INFORMED":
-        attacks.append("SAGE confirmation points must remain zero outside admitted SAGE_INFORMED")
+    if packet.sage.status.value != "ESTABLISHED":
+        attacks.append("SAGE not established; confirmation points must be zero")
         survives.append("BEHAVIOR_ONLY is allowed")
     if packet.score and packet.score.raw_score >= 82 and packet.vetoes:
         attacks.append("high score cannot override veto"); fails.append("HIGH_SCORE_PLUS_VETO")
@@ -45,10 +45,10 @@ def critique(packet: ResearchPacket) -> ResearchPacket:
         packet.disposition = Disposition.REJECT
     packet.red_team = RedTeamRecord(
         verdict=verdict,
-        attack="; ".join(attacks),
+        attack="; ".join(attacks) or "standard freshness/economics/horizon review",
         survives="; ".join(survives) or "none claimed",
         fails="; ".join(fails) or "none",
-        reverse_kill_if="fresh chain, sourced GEX, explicit numeric invalidation, supportive net scenarios",
+        reverse_kill_if="fresh chain, sourced GEX, explicit invalidation, supportive scenarios",
         original_thesis_preserved=original.model_dump() == packet.thesis.model_dump(),
         score_changed=False,
     )

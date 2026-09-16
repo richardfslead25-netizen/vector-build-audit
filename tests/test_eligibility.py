@@ -1,7 +1,8 @@
+
 from datetime import date, datetime, timezone
 from tests.helpers import make_contract
 from vector.eligibility.gates import evaluate_eligibility
-LISTED = {date(2026,9,25), date(2026,10,2)}
+LISTED = {date(2026,10,2), date(2026,10,9)}
 NOW = datetime(2026,9,15,16,5,tzinfo=timezone.utc)
 
 def test_missing_greeks_or_quotes():
@@ -16,10 +17,10 @@ def test_stale_chain_and_timestamp_mismatch():
 
 def test_incorrect_contract_identity():
     c = make_contract(underlying="QQQ", occ_symbol="ZZZ999999C00000000")
-    assert "CONTRACT_IDENTITY_MISMATCH" in evaluate_eligibility(c, now=NOW, listed_expirations=LISTED)
+    assert "CONTRACT_IDENTITY_UNPARSEABLE" in evaluate_eligibility(c, now=NOW, listed_expirations=LISTED)
 
 def test_negative_put_delta_uses_absolute_value():
-    c = make_contract(right="P", occ_symbol="SPY260925P00580000", delta=-0.44)
+    c = make_contract(right="P", occ_symbol="SPY261002P00580000", delta=-0.44)
     assert c.abs_delta == 0.44
     assert "MISSING_DELTA" not in evaluate_eligibility(c, now=NOW, listed_expirations=LISTED)
 

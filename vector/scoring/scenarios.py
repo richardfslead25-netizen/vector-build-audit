@@ -46,7 +46,13 @@ def estimate_scenarios(contract: OptionContract, spot: float, settings: Settings
     return results
 
 
-def scenarios_support_thesis(contract, spot, right, settings=None, thesis=None):
+def scenarios_support_thesis(
+    contract: OptionContract,
+    spot: float,
+    right: OptionRight,
+    settings: Settings | None = None,
+    thesis: Thesis | None = None,
+) -> bool | None:
     if not scenarios_available(contract, spot):
         return None
     rows = estimate_scenarios(contract, spot, settings)
@@ -58,7 +64,10 @@ def scenarios_support_thesis(contract, spot, right, settings=None, thesis=None):
     else:
         target_move = 0.04 if right is OptionRight.CALL else -0.04
         horizon = 7
-    nearest = min(rows, key=lambda row: abs(row.spot_move - target_move) + abs(row.days_elapsed - horizon) + abs(row.iv_move))
+    nearest = min(
+        rows,
+        key=lambda row: abs(row.spot_move - target_move) + abs(row.days_elapsed - horizon) + abs(row.iv_move),
+    )
     if abs(nearest.spot_move - target_move) > 0.021:
         return False
     return bool(nearest.pnl_per_contract is not None and nearest.pnl_per_contract > 0)
