@@ -7,8 +7,19 @@ from typing import Final
 
 from pydantic import BaseModel, Field
 
-RULES_VERSION: Final[str] = "VECTOR-STAGE1-0.1.0"
-TRANSFORMATION_VERSION: Final[str] = "vector-features-0.1.0"
+RULES_VERSION: Final[str] = "VECTOR-STAGE1-0.1.1"
+TRANSFORMATION_VERSION: Final[str] = "vector-features-0.1.1"
+
+SAGE_INFORMED_ADMISSION_ENABLED: Final[bool] = False
+SAGE_ALLOWED_SOURCES: Final[frozenset[str]] = frozenset({"SAGE"})
+SAGE_REQUIRED_ESTABLISHED_FIELDS: Final[tuple[str, ...]] = (
+    "schema_version",
+    "source_identity",
+    "cutoff",
+    "receipt_time",
+    "freeze_identity",
+    "regime",
+)
 
 
 class AuthorityConfig(BaseModel):
@@ -40,10 +51,17 @@ class UniverseConfig(BaseModel):
     spread_strong_pct: float = 0.05
     spread_acceptable_pct: float = 0.10
     require_end_of_week: bool = True
+    require_listed_expirations: bool = True
+    require_quote_and_greeks_time: bool = True
+    reject_naive_timestamps: bool = True
+    reject_future_timestamps: bool = True
     standard_multiplier: int = 100
     exclude_adjusted_contracts: bool = True
     exclude_zero_bid: bool = True
     exclude_zero_mid: bool = True
+    max_abs_delta: float = 1.0
+    max_iv: float = 5.0
+    min_strike: float = 0.01
 
 
 class FeatureConfig(BaseModel):
@@ -71,8 +89,12 @@ class ScenarioConfig(BaseModel):
     spot_moves: tuple[float, ...] = (-0.08, -0.04, -0.02, 0.0, 0.02, 0.04, 0.08)
     days_elapsed: tuple[int, ...] = (0, 3, 7, 14)
     iv_moves: tuple[float, ...] = (-0.20, 0.0, 0.20)
-    slippage_pct_of_mid: float = 0.50
+    use_quoted_half_spread: bool = True
+    fallback_slippage_pct_of_mid: float = 0.05
     commission_per_contract: float = 0.65
+    iv_unit: str = "decimal_volatility"
+    vega_unit: str = "value_per_1.00_vol"
+    pricing_method: str = "first_order_greeks_taylor"
 
 
 class Settings(BaseModel):
@@ -84,6 +106,7 @@ class Settings(BaseModel):
     scenarios: ScenarioConfig = Field(default_factory=ScenarioConfig)
     rules_version: str = RULES_VERSION
     transformation_version: str = TRANSFORMATION_VERSION
+    sage_informed_admission_enabled: bool = SAGE_INFORMED_ADMISSION_ENABLED
 
 
 DEFAULT_SETTINGS = Settings()
