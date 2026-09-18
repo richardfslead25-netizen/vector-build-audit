@@ -31,3 +31,11 @@ SAGE_INPUT=UNAVAILABLE
 REVIEW != APPROVAL != TRADE
 
 No runtime tests executed for this documentation-only handoff.
+
+
+### 2026-09-18 — Owner clarification: pressure interpretation and historical memory
+
+Read the [expanded canonical handoff, including section 12](https://github.com/richardfslead25-netizen/sage-vector-bridge/blob/334bdbc0e763df67ab17245fd4bd475422dcf217/beekeeper/2026-09-18-architecture-and-integration-handoff.md) at bridge commit 334bdbc0e763df67ab17245fd4bd475422dcf217.
+BeeKeeper uses correct Sage vocabulary, interprets qualified evidence into explicitly BeeKeeper-owned hypotheses about immediate/near-term bullish, bearish or mixed pressure on identified assets, and preserves the original horizon, mechanism, contradictions and subsequent outcome. No regime-token-only timing or invented Sage forecast. Read-only upstream; writes only its own approved journal.
+Future historical comparisons retain point-in-time statistics, versions, provenance, episode and horizon dependencies, contrary cases and uncertainty. Analog selection must avoid outcome leakage; descriptive tendencies are not causal proof or validated predictive probabilities. Findings remain review proposals, never automatic upstream changes.
+This supplements the pinned original handoff; it opens no implementation, new data access, publication delivery or execution. Current active gates and zero-freeze/unavailable state remain unchanged.
