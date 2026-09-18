@@ -93,3 +93,55 @@ def test_substring_is_not_identity():
         listed_expirations=LISTED,
     )
     assert "CONTRACT_IDENTITY_UNPARSEABLE" in vetoes
+
+
+def test_tab_is_not_osi_padding():
+    assert parse_occ_symbol("SPY\t261002C00580000") is None
+    assert pad_osi_symbol("SPY\t261002C00580000") is None
+
+
+def test_hyphen_and_slash_roots_are_not_normalized():
+    assert parse_occ_symbol("BRK-B261002C00400000") is None
+    assert parse_occ_symbol("BRK/B261002C00400000") is None
+    assert format_occ_symbol("BRK-B", date(2026, 10, 2), OptionRight.CALL, 400.0) is None
+    dotted = parse_occ_symbol("BRK.B261002C00400000")
+    assert dotted is not None
+    assert dotted["underlying"] == "BRK.B"
+    assert contract_matches_occ(
+        make_contract(underlying="BRKB", occ_symbol="BRK.B261002C00400000", strike=400.0)
+    ) == ["CONTRACT_UNDERLYING_MISMATCH"]
+
+
+def test_osi_year_is_2000_to_2099_only():
+    assert format_occ_symbol("SPY", date(1999, 1, 1), OptionRight.CALL, 10.0) is None
+    assert format_occ_symbol("SPY", date(2100, 1, 1), OptionRight.CALL, 10.0) is None
+    built = format_occ_symbol("SPY", date(2099, 1, 1), OptionRight.CALL, 10.0)
+    assert built == "SPY990101C00010000"
+    parsed = parse_occ_symbol("SPY990101C00010000")
+    assert parsed is not None
+    assert parsed["expiration"] == date(2099, 1, 1)
+
+
+def test_spx_is_not_spxw():
+    assert "CONTRACT_UNDERLYING_MISMATCH" in contract_matches_occ(
+        make_contract(
+            underlying="SPX",
+            occ_symbol="SPXW261002C04500000",
+            strike=4500.0,
+            expiration=date(2026, 10, 2),
+        )
+    )
+    assert contract_matches_occ(
+        make_contract(
+            underlying="SPXW",
+            occ_symbol="SPXW261002C04500000",
+            strike=4500.0,
+            expiration=date(2026, 10, 2),
+        )
+    ) == []
+
+
+def test_seven_char_root_and_invalid_date_are_not_padded():
+    assert parse_occ_symbol("ABCDEFG261002C00001000") is None
+    assert pad_osi_symbol("SPY261331C00580000") is None
+    assert parse_occ_symbol("SPY261331C00580000") is None
