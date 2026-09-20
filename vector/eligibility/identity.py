@@ -1,10 +1,16 @@
 """OCC / OSI identity parsing. Do not treat substring membership as identity.
 
 Preferred order:
-1. Compact and uppercase.
-2. If the compact string is a padded 21-character OSI record, slice fixed fields.
+1. Compact ASCII spaces and uppercase. Tabs, newlines, and other whitespace are not padding.
+2. If the compact string matches OSI shape, slice root / YYMMDD / right / mills.
 3. Otherwise reverse-parse: strike (8) + right (1) + YYMMDD (6) + root remainder.
-4. Reject invalid calendar dates, rights other than C/P, and non-positive strikes.
+4. Reject invalid calendar dates, rights other than C/P, non-positive strikes,
+   roots longer than six, hyphen or slash roots, and years outside 2000-2099.
+
+Locked Stage 1 rules:
+- Hyphen and slash are not normalized to dot or removed. BRK-B and BRK/B do not become BRK.B or BRKB.
+- OSI root is compared exactly to the contract underlying after space-compact. SPX is not SPXW.
+- YY is 2000 + yy only. format_occ_symbol refuses years outside 2000-2099 rather than wrapping 1999 to 99.
 """
 
 from __future__ import annotations
@@ -15,11 +21,14 @@ from datetime import date
 from vector.contracts.enums import OptionRight
 from vector.contracts.options import OptionContract
 
-# Compact OSI after spaces removed. Root may include digits (SPXW, RUTW).
+# Compact OSI after ASCII spaces removed. Root may include digits (SPXW, RUTW).
+# Dot is allowed in the root. Hyphen and slash are not.
 COMPACT_OSI_RE = re.compile(r"^([A-Z0-9.]{1,6})(\d{6})([CP])(\d{8})$")
 PADDED_TAIL_RE = re.compile(r"^(\d{6})([CP])(\d{8})$")
 MAX_ROOT_LEN = 6
 STRIKE_MILLS = 1000.0
+OSI_YEAR_MIN = 2000
+OSI_YEAR_MAX = 2099
 
 
 def compact_occ(symbol: str) -> str:
@@ -27,13 +36,16 @@ def compact_occ(symbol: str) -> str:
 
 
 def pad_osi_symbol(symbol: str) -> str | None:
-    """Return a 21-character OSI record when the compact form is well-shaped."""
+    """Return a 21-character OSI record only when the compact form is a valid identity."""
     compact = compact_occ(symbol)
     match = COMPACT_OSI_RE.fullmatch(compact)
     if not match:
         return None
     root, yymmdd, right, strike_raw = match.groups()
-    return f"{root:<6}{yymmdd}{right}{strike_raw}"
+    assembled = _assemble(root, yymmdd, right, strike_raw)
+    if assembled is None:
+        return None
+    return str(assembled["osi_padded"])
 
 
 def format_occ_symbol(
@@ -49,6 +61,10 @@ def format_occ_symbol(
     if not compact_root or len(compact_root) > MAX_ROOT_LEN:
         return None
     if not re.fullmatch(r"[A-Z0-9.]+", compact_root):
+        return None
+    if any(token in compact_root for token in "-/"):
+        return None
+    if expiration.year < OSI_YEAR_MIN or expiration.year > OSI_YEAR_MAX:
         return None
     if strike is None or strike <= 0:
         return None
@@ -143,6 +159,8 @@ def _parse_yymmdd(yymmdd: str) -> date | None:
     year = 2000 + int(yymmdd[0:2])
     month = int(yymmdd[2:4])
     day = int(yymmdd[4:6])
+    if year < OSI_YEAR_MIN or year > OSI_YEAR_MAX:
+        return None
     try:
         return date(year, month, day)
     except ValueError:
