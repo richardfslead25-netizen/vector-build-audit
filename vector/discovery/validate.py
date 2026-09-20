@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from vector.contracts.enums import AlignmentState, Grade, SageStatus
+from vector.contracts.enums import AlignmentState, OperatingMode, SageStatus
 from vector.contracts.sage import SageContext
 from vector.discovery.models import (
     COMMENTARY_STALE_AFTER,
@@ -32,13 +32,21 @@ def derive_source_event_id(originating_note_id: str, publisher: str) -> str:
     return hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
 
 
-def sage_relationship_for(sage: SageContext | None) -> AlignmentState:
+def official_freeze_admitted(sage: SageContext | None) -> bool:
+    """Commentary may compare only to a complete admitted official freeze."""
     if sage is None:
-        return AlignmentState.INSUFFICIENT
-    verified = getattr(sage, "verified_established", False) is True
-    if not verified:
-        return AlignmentState.INSUFFICIENT
-    if sage.status is not SageStatus.ESTABLISHED:
+        return False
+    freeze = getattr(getattr(sage, "upstream", None), "freeze_identity", None)
+    return (
+        getattr(sage, "verified_established", False) is True
+        and sage.status is SageStatus.ESTABLISHED
+        and sage.operating_mode is OperatingMode.SAGE_INFORMED
+        and bool(freeze)
+    )
+
+
+def sage_relationship_for(sage: SageContext | None) -> AlignmentState:
+    if not official_freeze_admitted(sage):
         return AlignmentState.INSUFFICIENT
     return sage.alignment
 
@@ -95,18 +103,9 @@ def evaluate_discovery(
             vetoes.append("NONSYNTHETIC_MARKET_CLAIM_FORBIDDEN")
         vetoes.append("MARKET_EVIDENCE_NOT_IN_DISCOVERY_SLICE")
 
-    mentions = working.mentions_macro_tokens or _contains_regime_token(working)
+    _ = working.mentions_macro_tokens or _contains_regime_token(working)
     sage_rel = sage_relationship_for(sage)
-    freeze_ref = None
-    verified = bool(sage is not None and getattr(sage, "verified_established", False) is True)
-    if verified and sage is not None and sage.upstream.freeze_identity:
-        freeze_ref = sage.upstream.freeze_identity
-    else:
-        freeze_ref = None
-        sage_rel = AlignmentState.INSUFFICIENT
-    if mentions and sage_rel is AlignmentState.CONSISTENT:
-        sage_rel = AlignmentState.INSUFFICIENT
-        vetoes.append("COMMENTARY_CANNOT_MINT_SAGE")
+    freeze_ref = sage.upstream.freeze_identity if official_freeze_admitted(sage) else None
 
     publication_ok = working.publication_verified and "MISSING_PUBLICATION_TIME" not in vetoes
     if not publication_ok:
@@ -135,7 +134,6 @@ def evaluate_discovery(
                 "STALE_COMMENTARY",
                 "UNSUPPORTED_EXPOSURE",
                 "MARKET_EVIDENCE_NOT_IN_DISCOVERY_SLICE",
-                "COMMENTARY_CANNOT_MINT_SAGE",
                 "TERMINAL_WITHDRAWN",
                 "TERMINAL_SUPERSEDED",
             }
