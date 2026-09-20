@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from tests.helpers import make_contract, make_market, make_thesis
 from vector.config import DTE_FACTOR_WEIGHTS, DEFAULT_AUTHORITY, DEFAULT_SETTINGS
 from vector.contracts.enums import AlignmentState, Direction, GammaVariant, Grade, OperatingMode, SageStatus
-from vector.contracts.sage import SageContext
+from vector.contracts.sage import SageContext, SageUpstreamFields
 from vector.discovery.models import (
     CandidateDiscoveryRecord,
     DiscoveryDirection,
@@ -15,6 +15,7 @@ from vector.discovery.models import (
 from vector.discovery.validate import (
     derive_source_event_id,
     evaluate_discovery,
+    official_freeze_admitted,
     sage_relationship_for,
 )
 from vector.scoring.engine import ScoreInputs, score_candidate
@@ -66,6 +67,18 @@ def _record(**kwargs) -> CandidateDiscoveryRecord:
     if "source_event_id" not in kwargs:
         base["source_event_id"] = derive_source_event_id(base["originating_note_id"], base["publisher"])
     return CandidateDiscoveryRecord(**base)
+
+
+def _admitted_freeze(*, alignment=AlignmentState.CONSISTENT) -> SageContext:
+    return SageContext(
+        status=SageStatus.ESTABLISHED,
+        alignment=alignment,
+        operating_mode=OperatingMode.SAGE_INFORMED,
+        verified_established=True,
+        claimed_established=True,
+        reason="synthetic-trust-boundary-fixture",
+        upstream=SageUpstreamFields(freeze_identity="freeze-fixture-1"),
+    )
 
 
 def test_verified_publication_unverified_mechanism_not_promoted():
@@ -167,6 +180,35 @@ def test_no_sage_freeze_relationship_insufficient():
     assert decision.official_freeze_ref is None
 
 
+def test_incomplete_established_claim_without_freeze_is_insufficient():
+    forged = SageContext(
+        status=SageStatus.ESTABLISHED,
+        alignment=AlignmentState.CONSISTENT,
+        operating_mode=OperatingMode.SAGE_INFORMED,
+        verified_established=True,
+        claimed_established=True,
+        reason="missing-freeze-identity",
+        upstream=SageUpstreamFields(freeze_identity=None),
+    )
+    assert official_freeze_admitted(forged) is False
+    assert sage_relationship_for(forged) is AlignmentState.INSUFFICIENT
+    decision = evaluate_discovery(_record(), now=NOW, sage=forged)
+    assert decision.sage_relationship is AlignmentState.INSUFFICIENT
+    assert decision.official_freeze_ref is None
+
+
+def test_established_without_sage_informed_is_insufficient():
+    forged = SageContext(
+        status=SageStatus.ESTABLISHED,
+        alignment=AlignmentState.CONSISTENT,
+        operating_mode=OperatingMode.BEHAVIOR_ONLY,
+        verified_established=True,
+        upstream=SageUpstreamFields(freeze_identity="freeze-fixture-1"),
+    )
+    assert official_freeze_admitted(forged) is False
+    assert sage_relationship_for(forged) is AlignmentState.INSUFFICIENT
+
+
 def test_no_sage_freeze_confirmation_points_zero():
     scored = score_candidate(ScoreInputs(
         direction=Direction.CALL,
@@ -198,6 +240,23 @@ def test_commentary_macro_tokens_cannot_mint_regime():
     assert decision.sage_relationship is AlignmentState.INSUFFICIENT
     assert decision.official_freeze_ref is None
     assert decision.promoted is False
+
+
+def test_macro_token_does_not_block_comparison_to_admitted_freeze():
+    record = _record(
+        stated_rationale="This looks consistent with QT-T valuation compression.",
+        mentions_macro_tokens=True,
+        publication_verified=True,
+        mechanism_verified=True,
+        transmission_observed=True,
+        exposure_supported=True,
+    )
+    freeze = _admitted_freeze(alignment=AlignmentState.CONSISTENT)
+    decision = evaluate_discovery(record, now=NOW, sage=freeze)
+    assert official_freeze_admitted(freeze) is True
+    assert decision.sage_relationship is AlignmentState.CONSISTENT
+    assert decision.official_freeze_ref == "freeze-fixture-1"
+    assert "COMMENTARY_CANNOT_MINT_SAGE" not in decision.vetoes
 
 
 def test_discovery_watch_is_not_scoring_grade_watch():
