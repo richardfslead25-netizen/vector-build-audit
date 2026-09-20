@@ -28,15 +28,45 @@ def gamma_variant_of(market: MarketSnapshot) -> GammaVariant:
     return GammaVariant.GAMMA_CONFIRMED if required else GammaVariant.GAMMA_UNAVAILABLE
 
 
-def _eligible_alternative(contract: OptionContract, alt: OptionContract) -> bool:
+def _alternative_fresh_at_cutoff(
+    alt: OptionContract,
+    *,
+    cutoff,
+    settings: Settings | None = None,
+) -> bool:
+    """Nearby comparisons require a usable quote time at the evaluation cutoff."""
+    cfg = settings or DEFAULT_SETTINGS
+    stamp = alt.quote_time
+    if stamp is None:
+        return False
+    if cfg.universe.reject_naive_timestamps and stamp.tzinfo is None:
+        return False
+    aware = stamp if stamp.tzinfo is not None else stamp.replace(tzinfo=timezone.utc)
+    if cfg.universe.reject_future_timestamps and aware > cutoff:
+        return False
+    if cutoff - aware > cfg.freshness.chain_max_age:
+        return False
+    return True
+
+
+def _eligible_alternative(
+    contract: OptionContract,
+    alt: OptionContract,
+    *,
+    cutoff,
+    settings: Settings | None = None,
+) -> bool:
     if alt.underlying != contract.underlying:
         return False
     if alt.right != contract.right:
         return False
     if alt.adjusted or alt.nonstandard_deliverable:
         return False
-    if contract.quote_time and alt.quote_time and alt.quote_time > contract.quote_time:
+    if not _alternative_fresh_at_cutoff(alt, cutoff=cutoff, settings=settings):
         return False
+    if contract.quote_time and alt.quote_time and alt.quote_time.tzinfo and contract.quote_time.tzinfo:
+        if alt.quote_time > contract.quote_time:
+            return False
     return True
 
 
@@ -44,6 +74,9 @@ def _comparison_flags(
     contract: OptionContract | None,
     alternatives: list[OptionContract],
     spot: float | None = None,
+    *,
+    cutoff=None,
+    settings: Settings | None = None,
 ) -> tuple[bool, bool]:
     if contract is None:
         return False, False
@@ -51,7 +84,7 @@ def _comparison_flags(
     nearby_expiry = False
     band = max(1.0, (spot or contract.strike) * NEARBY_STRIKE_PCT)
     for alt in alternatives:
-        if not _eligible_alternative(contract, alt):
+        if not _eligible_alternative(contract, alt, cutoff=cutoff, settings=settings):
             continue
         strike_gap = abs(alt.strike - contract.strike)
         if alt.expiration == contract.expiration and strike_gap > 1e-9 and strike_gap <= band:
@@ -97,7 +130,13 @@ def evaluate_candidate(
         as_of_date=cutoff.date(),
     )
     vetoes.extend(coherence_vetoes(ticker=ticker, direction=direction, market=market, contract=working))
-    nearby_strike, nearby_expiry = _comparison_flags(working, alternatives, getattr(market, "spot", None))
+    nearby_strike, nearby_expiry = _comparison_flags(
+        working,
+        alternatives,
+        getattr(market, "spot", None),
+        cutoff=cutoff,
+        settings=settings,
+    )
     if working is not None and not nearby_strike:
         vetoes.append("MISSING_NEARBY_STRIKE")
     if working is not None and not nearby_expiry:

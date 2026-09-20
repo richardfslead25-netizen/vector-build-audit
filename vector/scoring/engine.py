@@ -179,7 +179,12 @@ def _score_flow(subs, missing, factor_max, market, features, direction):
 def _score_macro(subs, missing, factor_max, sage, market):
     sage_max = _sub_max("macro", "sage_confirmation", factor_max)
     tx_max = _sub_max("macro", "observed_transmission", factor_max)
-    sage_ok = (sage.operating_mode is OperatingMode.SAGE_INFORMED and sage.status is SageStatus.ESTABLISHED and sage.alignment is AlignmentState.CONSISTENT)
+    sage_ok = (
+        sage.verified_established is True
+        and sage.operating_mode is OperatingMode.SAGE_INFORMED
+        and sage.status is SageStatus.ESTABLISHED
+        and sage.alignment is AlignmentState.CONSISTENT
+    )
     if sage_ok: subs["macro.sage_confirmation"] = sage_max
     else:
         subs["macro.sage_confirmation"] = 0.0; missing.append("macro.sage_confirmation")
