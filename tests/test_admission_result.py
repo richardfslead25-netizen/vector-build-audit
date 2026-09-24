@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+from pydantic import ValidationError
+
 from vector.admission import (
     AdmissionConjunct,
     AdmissionResult,
@@ -159,10 +162,7 @@ def test_result_is_frozen():
         closed_state="UNUSED_ON_SUCCESS",
     )
     assert isinstance(result, AdmissionResult)
-    try:
-        result.admitted = False  # type: ignore[misc]
-        raise AssertionError("AdmissionResult must be frozen")
-    except Exception:
-        pass
+    with pytest.raises(ValidationError):
+        result.admitted = False
     assert result.admitted is True
     assert result.closed_state is None
